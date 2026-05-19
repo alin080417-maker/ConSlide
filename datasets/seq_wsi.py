@@ -14,7 +14,6 @@ from itertools import islice
 import bisect
 
 from torch.utils.data import Dataset
-import h5py
 
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -267,7 +266,7 @@ class Generic_WSI_Classification_Dataset(Dataset):
         if len(split) > 0:
             mask = self.slide_data['slide_id'].isin(split.tolist())
             df_slice = self.slide_data[mask].reset_index(drop=True)
-            split = Generic_Split(df_slice, data_dir=self.data_dir, num_classes=self.num_classes)
+            split = self.make_split(df_slice)
         else:
             split = None
         
@@ -283,7 +282,7 @@ class Generic_WSI_Classification_Dataset(Dataset):
         if len(split) > 0:
             mask = self.slide_data['slide_id'].isin(merged_split)
             df_slice = self.slide_data[mask].reset_index(drop=True)
-            split = Generic_Split(df_slice, data_dir=self.data_dir, num_classes=self.num_classes)
+            split = self.make_split(df_slice)
         else:
             split = None
         
@@ -296,21 +295,21 @@ class Generic_WSI_Classification_Dataset(Dataset):
         if from_id:
             if len(self.train_ids) > 0:
                 train_data = self.slide_data.loc[self.train_ids].reset_index(drop=True)
-                train_split = Generic_Split(train_data, data_dir=self.data_dir, num_classes=self.num_classes)
+                train_split = self.make_split(train_data)
 
             else:
                 train_split = None
             
             if len(self.val_ids) > 0:
                 val_data = self.slide_data.loc[self.val_ids].reset_index(drop=True)
-                val_split = Generic_Split(val_data, data_dir=self.data_dir, num_classes=self.num_classes)
+                val_split = self.make_split(val_data)
 
             else:
                 val_split = None
             
             if len(self.test_ids) > 0:
                 test_data = self.slide_data.loc[self.test_ids].reset_index(drop=True)
-                test_split = Generic_Split(test_data, data_dir=self.data_dir, num_classes=self.num_classes)
+                test_split = self.make_split(test_data)
             
             else:
                 test_split = None
@@ -331,6 +330,9 @@ class Generic_WSI_Classification_Dataset(Dataset):
 
     def getlabel(self, ids):
         return self.slide_data['label'][ids]
+
+    def make_split(self, slide_data):
+        return Generic_Split(slide_data, data_dir=self.data_dir, num_classes=self.num_classes)
 
     def __getitem__(self, idx):
         return None
@@ -390,16 +392,119 @@ class Generic_WSI_Classification_Dataset(Dataset):
 
 class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
     def __init__(self,
-        data_dir, 
+        data_dir,
+        feature_format='h5',
+        h5_feature_key='features',
+        h5_feature2_key='features2',
+        h5_coords_key='coords',
+        missing_feature2='error',
         **kwargs):
     
         super(Generic_MIL_Dataset, self).__init__(**kwargs)
         self.data_dir = data_dir
-        # self.use_h5 = False
-        self.use_h5 = True
+        self.feature_format = feature_format
+        self.h5_feature_key = h5_feature_key
+        self.h5_feature2_key = h5_feature2_key
+        self.h5_coords_key = h5_coords_key
+        self.missing_feature2 = missing_feature2
+        self.use_h5 = feature_format == 'h5'
 
     def load_from_h5(self, toggle):
         self.use_h5 = toggle
+        self.feature_format = 'h5' if toggle else 'pt'
+
+    def split_feature_kwargs(self):
+        return {
+            'feature_format': self.feature_format,
+            'h5_feature_key': self.h5_feature_key,
+            'h5_feature2_key': self.h5_feature2_key,
+            'h5_coords_key': self.h5_coords_key,
+            'missing_feature2': self.missing_feature2,
+        }
+
+    def make_split(self, slide_data):
+        return Generic_Split(
+            slide_data,
+            data_dir=self.data_dir,
+            num_classes=self.num_classes,
+            **self.split_feature_kwargs())
+
+    def _resolve_feature_path(self, data_dir, slide_id):
+        if self.feature_format == 'h5':
+            candidates = [
+                os.path.join(data_dir, 'h5_files', '{}.h5'.format(slide_id)),
+                os.path.join(data_dir, '{}.h5'.format(slide_id)),
+            ]
+        elif self.feature_format == 'pt':
+            candidates = [
+                os.path.join(data_dir, 'pt_files', '{}.pt'.format(slide_id)),
+                os.path.join(data_dir, '{}.pt'.format(slide_id)),
+            ]
+        else:
+            raise ValueError('Unsupported feature format: {}'.format(self.feature_format))
+
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+        raise FileNotFoundError(
+            'No feature file found for slide {}. Tried: {}'.format(
+                slide_id, ', '.join(candidates)))
+
+    def _build_feature2(self, features):
+        if self.missing_feature2 == 'copy':
+            return features.clone()
+        if self.missing_feature2 == 'zeros':
+            return torch.zeros_like(features)
+        raise KeyError(
+            'Missing secondary feature key "{}". Set --wsi_missing_feature2 '
+            'to "copy" or "zeros" for single-stream features such as CONCH.'.format(
+                self.h5_feature2_key))
+
+    def _load_h5_features(self, full_path):
+        import h5py
+
+        with h5py.File(full_path,'r') as hdf5_file:
+            if self.h5_feature_key not in hdf5_file:
+                raise KeyError(
+                    'Feature key "{}" not found in {}'.format(
+                        self.h5_feature_key, full_path))
+            features = torch.from_numpy(hdf5_file[self.h5_feature_key][:])
+
+            if self.h5_feature2_key in hdf5_file:
+                features2 = torch.from_numpy(hdf5_file[self.h5_feature2_key][:])
+            else:
+                features2 = self._build_feature2(features)
+
+            if self.h5_coords_key in hdf5_file:
+                _ = hdf5_file[self.h5_coords_key][:]
+
+        return features, features2
+
+    def _load_pt_features(self, full_path):
+        obj = torch.load(full_path, map_location='cpu')
+        if isinstance(obj, torch.Tensor):
+            features = obj
+            features2 = self._build_feature2(features)
+        elif isinstance(obj, dict):
+            if self.h5_feature_key not in obj:
+                raise KeyError(
+                    'Feature key "{}" not found in {}'.format(
+                        self.h5_feature_key, full_path))
+            features = obj[self.h5_feature_key]
+            if not isinstance(features, torch.Tensor):
+                features = torch.as_tensor(features)
+
+            if self.h5_feature2_key in obj:
+                features2 = obj[self.h5_feature2_key]
+                if not isinstance(features2, torch.Tensor):
+                    features2 = torch.as_tensor(features2)
+            else:
+                features2 = self._build_feature2(features)
+        else:
+            raise TypeError(
+                'Unsupported .pt payload in {}: {}'.format(full_path, type(obj)))
+
+        return features, features2
 
     def __getitem__(self, idx):
         slide_id = self.slide_data['slide_id'][idx]
@@ -410,28 +515,11 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
         else:
             data_dir = self.data_dir
 
-        # if not self.use_h5:
-        # 	if self.data_dir:
-        # 		full_path = os.path.join(data_dir, 'pt_files', '{}.pt'.format(slide_id))
-        # 		features = torch.load(full_path)
-        # 		# print(features.shape)
-        # 		return features, label
-            
-        # 	else:
-        # 		return slide_id, label
-
-        # else:
-        full_path = os.path.join(data_dir,'h5_files','{}.h5'.format(slide_id))
-        with h5py.File(full_path,'r') as hdf5_file:
-            # print(hdf5_file)
-            features = hdf5_file['features'][:]
-            features2 = hdf5_file['features2'][:]
-            coords = hdf5_file['coords'][:]
-
-        features = torch.from_numpy(features)
-        features2 = torch.from_numpy(features2)
-        # print(slide_id)
-        # print(features.shape)
+        full_path = self._resolve_feature_path(data_dir, slide_id)
+        if self.feature_format == 'h5':
+            features, features2 = self._load_h5_features(full_path)
+        else:
+            features, features2 = self._load_pt_features(full_path)
 
         if hasattr(self, 'logits'):
             return features, features2, label, self.logits[idx]
@@ -439,8 +527,18 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
 
 
 class Generic_Split(Generic_MIL_Dataset):
-    def __init__(self, slide_data, data_dir=None, num_classes=2):
-        self.use_h5 = False
+    def __init__(self, slide_data, data_dir=None, num_classes=2,
+                 feature_format='h5',
+                 h5_feature_key='features',
+                 h5_feature2_key='features2',
+                 h5_coords_key='coords',
+                 missing_feature2='error'):
+        self.use_h5 = feature_format == 'h5'
+        self.feature_format = feature_format
+        self.h5_feature_key = h5_feature_key
+        self.h5_feature2_key = h5_feature2_key
+        self.h5_coords_key = h5_coords_key
+        self.missing_feature2 = missing_feature2
         self.slide_data = slide_data
         self.data_dir = data_dir
         self.num_classes = num_classes
@@ -510,48 +608,69 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
     TRANSFORM = None
     # FOLD = 0
 
-    datasets = [
-        Generic_MIL_Dataset(csv_path = '../Dataset/TCGA-NSCLC/tcga-nsclc_label.csv',
-                            data_dir= '../Dataset/TCGA-NSCLC/patch_4096/convnexts_l0l1_512_4096/',
-                            shuffle = False, 
-                            seed = 0, 
-                            print_info = True,
-                            label_dict = {'LUAD':6, 'LUSC':7},
-                            patient_strat=False,
-                            ignore=[]),
-        Generic_MIL_Dataset(csv_path = '../Dataset/TCGA-BRCA/tcga-brca_label.csv',
-                            data_dir= '../Dataset/TCGA-BRCA/patch_4096/convnexts_l0l1_512_4096/',
-                            shuffle = False, 
-                            seed = 0, 
-                            print_info = True,
-                            label_dict = {'IDC':4, 'ILC':5},
-                            patient_strat=False,
-                            ignore=['MDLC', 'PD', 'ACBC', 'IMMC', 'BRCNOS', 'BRCA', 'SPC', 'MBC', 'MPT']),
-        Generic_MIL_Dataset(csv_path = '../Dataset/TCGA-RCC/tcga-kidney_label.csv',
-                            data_dir= '../Dataset/TCGA-RCC/patch_4096/convnexts_l0l1_512_4096',
-                            shuffle = False, 
-                            seed = 0, 
-                            print_info = True,
-                            label_dict = {'CCRCC':2, 'PRCC':3},
-                            patient_strat=False,
-                            ignore=['CHRCC']),
-        Generic_MIL_Dataset(csv_path = '../Dataset/TCGA-ESCA/tcga-esca_label.csv',
-                            data_dir= '../Dataset/TCGA-ESCA/patch_4096/convnexts_l0l1_512_4096/',
-                            shuffle = False, 
-                            seed = 0, 
-                            print_info = True,
-                            label_dict = {'Adenocarcinoma':0, 'Squamous cell carcinoma':1},
-                            patient_strat=False,
-                            ignore=['Tubular adenocarcinoma', 'Basaloid squamous cell carcinoma']),
+    COHORTS = [
+        {
+            'name': 'NSCLC',
+            'folder': 'TCGA-NSCLC',
+            'csv': 'tcga-nsclc_label.csv',
+            'split': 'NSCLC_100',
+            'label_dict': {'LUAD':6, 'LUSC':7},
+            'ignore': [],
+        },
+        {
+            'name': 'BRCA',
+            'folder': 'TCGA-BRCA',
+            'csv': 'tcga-brca_label.csv',
+            'split': 'BRCA_100',
+            'label_dict': {'IDC':4, 'ILC':5},
+            'ignore': ['MDLC', 'PD', 'ACBC', 'IMMC', 'BRCNOS', 'BRCA', 'SPC', 'MBC', 'MPT'],
+        },
+        {
+            'name': 'RCC',
+            'folder': 'TCGA-RCC',
+            'csv': 'tcga-kidney_label.csv',
+            'split': 'RCC_100',
+            'label_dict': {'CCRCC':2, 'PRCC':3},
+            'ignore': ['CHRCC'],
+        },
+        {
+            'name': 'ESCA',
+            'folder': 'TCGA-ESCA',
+            'csv': 'tcga-esca_label.csv',
+            'split': 'ESCA_100',
+            'label_dict': {'Adenocarcinoma':0, 'Squamous cell carcinoma':1},
+            'ignore': ['Tubular adenocarcinoma', 'Basaloid squamous cell carcinoma'],
+        },
     ]
-    split_dirs = [
-        '../HIT/10fold_splits/NSCLC_100',
-        '../HIT/10fold_splits/BRCA_100',
-        '../HIT/10fold_splits/RCC_100',
-        '../HIT/10fold_splits/ESCA_100'
-    ]
-    datasets.reverse()
-    split_dirs.reverse()
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.datasets, self.split_dirs = self._build_datasets(args)
+
+    def _build_datasets(self, args):
+        datasets = []
+        split_dirs = []
+        for cohort in self.COHORTS:
+            cohort_root = os.path.join(args.wsi_data_root, cohort['folder'])
+            datasets.append(Generic_MIL_Dataset(
+                csv_path=os.path.join(cohort_root, cohort['csv']),
+                data_dir=os.path.join(cohort_root, args.wsi_feature_subdir),
+                feature_format=args.wsi_feature_format,
+                h5_feature_key=args.wsi_h5_feature_key,
+                h5_feature2_key=args.wsi_h5_feature2_key,
+                h5_coords_key=args.wsi_h5_coords_key,
+                missing_feature2=args.wsi_missing_feature2,
+                shuffle=False,
+                seed=0,
+                print_info=True,
+                label_dict=cohort['label_dict'],
+                patient_strat=False,
+                ignore=cohort['ignore']))
+            split_dirs.append(os.path.join(args.wsi_split_root, cohort['split']))
+
+        datasets.reverse()
+        split_dirs.reverse()
+        return datasets, split_dirs
 
 
     def get_data_loaders(self, FOLD):

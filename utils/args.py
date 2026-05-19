@@ -36,6 +36,26 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--batch_size', type=int, default=1,
                         help='Batch size.')
 
+    parser.add_argument('--wsi_data_root', type=str, default='../Dataset',
+                        help='Root directory containing TCGA cohort folders.')
+    parser.add_argument('--wsi_split_root', type=str, default='../HIT/10fold_splits',
+                        help='Root directory containing WSI split folders.')
+    parser.add_argument('--wsi_feature_subdir', type=str,
+                        default='patch_4096/convnexts_l0l1_512_4096',
+                        help='Feature directory inside each TCGA cohort folder.')
+    parser.add_argument('--wsi_feature_format', type=str, default='h5',
+                        choices=['h5', 'pt'],
+                        help='On-disk feature format for WSI bags.')
+    parser.add_argument('--wsi_h5_feature_key', type=str, default='features',
+                        help='Primary feature key used when reading HDF5 bags.')
+    parser.add_argument('--wsi_h5_feature2_key', type=str, default='features2',
+                        help='Secondary feature key used when reading HDF5 bags.')
+    parser.add_argument('--wsi_h5_coords_key', type=str, default='coords',
+                        help='Coordinate key used when reading HDF5 bags.')
+    parser.add_argument('--wsi_missing_feature2', type=str, default='error',
+                        choices=['error', 'copy', 'zeros'],
+                        help='Fallback when the secondary feature key is missing.')
+
 def add_management_args(parser: ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=None,
                         help='The random seed.')
