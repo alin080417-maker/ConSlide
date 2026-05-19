@@ -24,10 +24,6 @@ import numpy as np
 from datasets.utils.validation import get_train_val
 from datasets.utils.continual_dataset import ContinualDataset, store_masked_loaders
 from typing import Tuple
-from backbone.model_clam import CLAM_SB
-from backbone.hit import HIT
-from backbone.transmil import TransMIL
-from backbone.model_dsmil import FCLayer, BClassifier, MILNet
 
 def collate_MIL(batch):
     img = torch.cat([item[0] for item in batch], dim = 0)
@@ -675,14 +671,15 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
 
     def get_data_loaders(self, FOLD):
         dataset = self.datasets[self.i // 2]
+        num_workers = getattr(self.args, 'wsi_num_workers', 4)
         train_dataset, val_dataset, test_dataset = dataset.return_splits(from_id=False, 
                 csv_path='{}/splits_{}.csv'.format(self.split_dirs[self.i // 2], FOLD))
         train_loader = DataLoader(train_dataset,
-                              batch_size=1, shuffle=True, num_workers=4, collate_fn = collate_MIL)
+                              batch_size=1, shuffle=True, num_workers=num_workers, collate_fn = collate_MIL)
         val_loader = DataLoader(val_dataset,
-                              batch_size=1, shuffle=True, num_workers=4, collate_fn = collate_MIL)
+                              batch_size=1, shuffle=True, num_workers=num_workers, collate_fn = collate_MIL)
         test_loader = DataLoader(test_dataset,
-                             batch_size=1, shuffle=False, num_workers=4, collate_fn = collate_MIL)
+                             batch_size=1, shuffle=False, num_workers=num_workers, collate_fn = collate_MIL)
         # transform = transforms.ToTensor()
         # train_dataset = MyMNIST(base_path() + 'MNIST',
         #                         train=True, download=True, transform=transform)
@@ -701,6 +698,7 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
         return train_loader, val_loader, test_loader
     def get_joint_data_loaders(self, FOLD):
         train_datasets, val_datasets, test_datasets = [], [], []
+        num_workers = getattr(self.args, 'wsi_num_workers', 4)
         for n in range(self.N_TASKS):
             dataset = self.datasets[n]
             train_dataset, val_dataset, test_dataset = dataset.return_splits(from_id=False, 
@@ -709,7 +707,7 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
             val_datasets.append(val_dataset)
 
             test_loader = DataLoader(test_dataset,
-                             batch_size=1, shuffle=False, num_workers=4, collate_fn = collate_MIL)
+                             batch_size=1, shuffle=False, num_workers=num_workers, collate_fn = collate_MIL)
             self.test_loaders.append(test_loader)
             # test_datasets.append(test_dataset)
         
@@ -718,9 +716,9 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
         # test_dataset = ConcatDataset(test_datasets)
 
         train_loader = DataLoader(train_dataset,
-                              batch_size=1, shuffle=True, num_workers=4, collate_fn = collate_MIL)
+                              batch_size=1, shuffle=True, num_workers=num_workers, collate_fn = collate_MIL)
         val_loader = DataLoader(val_dataset,
-                              batch_size=1, shuffle=True, num_workers=4, collate_fn = collate_MIL)
+                              batch_size=1, shuffle=True, num_workers=num_workers, collate_fn = collate_MIL)
         # test_loader = DataLoader(test_dataset,
         #                      batch_size=1, shuffle=False, num_workers=4, collate_fn = collate_MIL)
         # transform = transforms.ToTensor()
@@ -745,6 +743,8 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
         # return MNISTMLP(28 * 28, SequentialMNIST.N_TASKS
         #                 * SequentialMNIST.N_CLASSES_PER_TASK)
         # return CLAM_SB(n_classes=8)
+        from backbone.hit import HIT
+
         return HIT(num_classes=8)
         # return TransMIL(n_classes=8)
 

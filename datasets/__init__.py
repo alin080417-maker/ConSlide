@@ -15,9 +15,12 @@ def get_all_models():
             if not model.find('__') > -1 and 'py' in model]
 
 NAMES = {}
-print(get_all_models())
 for model in get_all_models():
-    mod = importlib.import_module('datasets.' + model)
+    try:
+        mod = importlib.import_module('datasets.' + model)
+    except ModuleNotFoundError as exc:
+        print('Skipping dataset {}: {}'.format(model, exc))
+        continue
     dataset_classes_name = [x for x in mod.__dir__() if 'type' in str(type(getattr(mod, x))) and 'ContinualDataset' in str(inspect.getmro(getattr(mod, x))[1:])]
     for d in dataset_classes_name:
         c = getattr(mod, d)

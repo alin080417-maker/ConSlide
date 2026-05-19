@@ -55,6 +55,8 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--wsi_missing_feature2', type=str, default='error',
                         choices=['error', 'copy', 'zeros'],
                         help='Fallback when the secondary feature key is missing.')
+    parser.add_argument('--wsi_num_workers', type=int, default=4,
+                        help='Number of DataLoader workers for WSI datasets.')
 
 def add_management_args(parser: ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=None,

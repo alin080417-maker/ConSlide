@@ -63,3 +63,38 @@ python scripts/inspect_wsi_features.py \
   --wsi_feature_format h5 \
   --feature_key features
 ```
+
+## CAN/QPMIL CONCH Dataset Adapter
+
+The downloaded CAN-style dataset uses this layout:
+
+```text
+can_dataset/
+  tcga_brca/
+    table/*.csv
+    datasplit/fold_*.npz
+    feats-l1-s256_CONCH/pt_files/*.pt
+```
+
+Convert it into a ConSlide-compatible tree without copying feature tensors:
+
+```bash
+python scripts/prepare_can_dataset.py \
+  --source_root /home/alan0804/CL/Dataset/03_Data/can_dataset \
+  --output_data_root /home/alan0804/CL/Dataset/navipath_conslide \
+  --output_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits
+```
+
+Then use these training data arguments:
+
+```bash
+--wsi_data_root /home/alan0804/CL/Dataset/navipath_conslide \
+--wsi_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits \
+--wsi_feature_subdir feats-l1-s256_CONCH \
+--wsi_feature_format pt \
+--wsi_missing_feature2 copy \
+--wsi_num_workers 0
+```
+
+Use `--wsi_num_workers 0` in restricted or notebook-like environments. On a
+normal training machine, increase it back to `4` or higher.
