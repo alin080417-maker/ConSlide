@@ -26,7 +26,10 @@ from models import get_model
 from utils.training import train
 from utils.best_args import best_args
 from utils.conf import set_random_seed
-import setproctitle
+try:
+    import setproctitle
+except ModuleNotFoundError:
+    setproctitle = None
 import torch
 import uuid
 import datetime
@@ -118,7 +121,8 @@ def main(fold, args=None):
     
     # set job name
     # setproctitle.setproctitle('{}_{}_{}'.format(args.model, args.buffer_size if 'buffer_size' in args else 0, args.dataset))     
-    setproctitle.setproctitle(f'{args.exp_desc}')
+    if setproctitle is not None:
+        setproctitle.setproctitle(f'{args.exp_desc}')
 
     if isinstance(dataset, ContinualDataset):
         train(model, dataset, args, fold)

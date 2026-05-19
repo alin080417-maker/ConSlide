@@ -23,8 +23,8 @@ Current loader behavior:
   - `features`
   - `features2`
   - `coords`
-- Current task order after `datasets.reverse()`:
-  ESCA -> RCC -> BRCA -> NSCLC
+- Current task order:
+  BRCA -> NSCLC -> RCC -> ESCA
 
 ## NaviPath First Integration Target
 
@@ -41,6 +41,8 @@ Implemented knobs:
 - `--wsi_split_root`
 - `--wsi_feature_subdir`
 - `--wsi_feature_format {h5,pt}`
+- `--wsi_feature_dim`
+- `--wsi_pt_feature_layout {flat,hit}`
 - `--wsi_h5_feature_key`
 - `--wsi_h5_feature2_key`
 - `--wsi_h5_coords_key`
@@ -92,9 +94,17 @@ Then use these training data arguments:
 --wsi_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits \
 --wsi_feature_subdir feats-l1-s256_CONCH \
 --wsi_feature_format pt \
+--wsi_feature_dim 512 \
+--wsi_pt_feature_layout hit \
 --wsi_missing_feature2 copy \
 --wsi_num_workers 0
 ```
 
 Use `--wsi_num_workers 0` in restricted or notebook-like environments. On a
 normal training machine, increase it back to `4` or higher.
+
+`--wsi_pt_feature_layout hit` is a compatibility adapter for the original HIT
+backbone. It expands each flat CONCH patch feature into repeated `8 x 8`
+tokens so the original ConSlide forward path can run. For NaviPath, prefer a
+single-stream ABMIL-style backbone instead of treating this adapter as the final
+model design.

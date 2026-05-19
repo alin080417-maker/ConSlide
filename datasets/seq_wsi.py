@@ -394,6 +394,7 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
         h5_feature2_key='features2',
         h5_coords_key='coords',
         missing_feature2='error',
+        pt_feature_layout='flat',
         **kwargs):
     
         super(Generic_MIL_Dataset, self).__init__(**kwargs)
@@ -403,6 +404,7 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
         self.h5_feature2_key = h5_feature2_key
         self.h5_coords_key = h5_coords_key
         self.missing_feature2 = missing_feature2
+        self.pt_feature_layout = pt_feature_layout
         self.use_h5 = feature_format == 'h5'
 
     def load_from_h5(self, toggle):
@@ -416,6 +418,7 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
             'h5_feature2_key': self.h5_feature2_key,
             'h5_coords_key': self.h5_coords_key,
             'missing_feature2': self.missing_feature2,
+            'pt_feature_layout': self.pt_feature_layout,
         }
 
     def make_split(self, slide_data):
@@ -500,6 +503,9 @@ class Generic_MIL_Dataset(Generic_WSI_Classification_Dataset):
             raise TypeError(
                 'Unsupported .pt payload in {}: {}'.format(full_path, type(obj)))
 
+        if self.pt_feature_layout == 'hit' and features.dim() == 2:
+            features = features.unsqueeze(1).unsqueeze(2).expand(-1, 8, 8, -1)
+
         return features, features2
 
     def __getitem__(self, idx):
@@ -528,13 +534,15 @@ class Generic_Split(Generic_MIL_Dataset):
                  h5_feature_key='features',
                  h5_feature2_key='features2',
                  h5_coords_key='coords',
-                 missing_feature2='error'):
+                 missing_feature2='error',
+                 pt_feature_layout='flat'):
         self.use_h5 = feature_format == 'h5'
         self.feature_format = feature_format
         self.h5_feature_key = h5_feature_key
         self.h5_feature2_key = h5_feature2_key
         self.h5_coords_key = h5_coords_key
         self.missing_feature2 = missing_feature2
+        self.pt_feature_layout = pt_feature_layout
         self.slide_data = slide_data
         self.data_dir = data_dir
         self.num_classes = num_classes
@@ -606,27 +614,27 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
 
     COHORTS = [
         {
-            'name': 'NSCLC',
-            'folder': 'TCGA-NSCLC',
-            'csv': 'tcga-nsclc_label.csv',
-            'split': 'NSCLC_100',
-            'label_dict': {'LUAD':6, 'LUSC':7},
-            'ignore': [],
-        },
-        {
             'name': 'BRCA',
             'folder': 'TCGA-BRCA',
             'csv': 'tcga-brca_label.csv',
             'split': 'BRCA_100',
-            'label_dict': {'IDC':4, 'ILC':5},
+            'label_dict': {'IDC':0, 'ILC':1},
             'ignore': ['MDLC', 'PD', 'ACBC', 'IMMC', 'BRCNOS', 'BRCA', 'SPC', 'MBC', 'MPT'],
+        },
+        {
+            'name': 'NSCLC',
+            'folder': 'TCGA-NSCLC',
+            'csv': 'tcga-nsclc_label.csv',
+            'split': 'NSCLC_100',
+            'label_dict': {'LUAD':2, 'LUSC':3},
+            'ignore': [],
         },
         {
             'name': 'RCC',
             'folder': 'TCGA-RCC',
             'csv': 'tcga-kidney_label.csv',
             'split': 'RCC_100',
-            'label_dict': {'CCRCC':2, 'PRCC':3},
+            'label_dict': {'CCRCC':4, 'PRCC':5},
             'ignore': ['CHRCC'],
         },
         {
@@ -634,7 +642,7 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
             'folder': 'TCGA-ESCA',
             'csv': 'tcga-esca_label.csv',
             'split': 'ESCA_100',
-            'label_dict': {'Adenocarcinoma':0, 'Squamous cell carcinoma':1},
+            'label_dict': {'Adenocarcinoma':6, 'Squamous cell carcinoma':7},
             'ignore': ['Tubular adenocarcinoma', 'Basaloid squamous cell carcinoma'],
         },
     ]
@@ -656,6 +664,7 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
                 h5_feature2_key=args.wsi_h5_feature2_key,
                 h5_coords_key=args.wsi_h5_coords_key,
                 missing_feature2=args.wsi_missing_feature2,
+                pt_feature_layout=args.wsi_pt_feature_layout,
                 shuffle=False,
                 seed=0,
                 print_info=True,
@@ -664,8 +673,6 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
                 ignore=cohort['ignore']))
             split_dirs.append(os.path.join(args.wsi_split_root, cohort['split']))
 
-        datasets.reverse()
-        split_dirs.reverse()
         return datasets, split_dirs
 
 
@@ -738,14 +745,13 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
         self.val_loader = val_loader
         return train_loader, val_loader, test_loader
 
-    @staticmethod
-    def get_backbone():
+    def get_backbone(self):
         # return MNISTMLP(28 * 28, SequentialMNIST.N_TASKS
         #                 * SequentialMNIST.N_CLASSES_PER_TASK)
         # return CLAM_SB(n_classes=8)
         from backbone.hit import HIT
 
-        return HIT(num_classes=8)
+        return HIT(num_classes=8, input_dim=self.args.wsi_feature_dim)
         # return TransMIL(n_classes=8)
 
         # i_classifier = FCLayer(in_size=768, out_size=8)

@@ -46,6 +46,11 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--wsi_feature_format', type=str, default='h5',
                         choices=['h5', 'pt'],
                         help='On-disk feature format for WSI bags.')
+    parser.add_argument('--wsi_feature_dim', type=int, default=768,
+                        help='Feature vector dimension consumed by the WSI backbone.')
+    parser.add_argument('--wsi_pt_feature_layout', type=str, default='flat',
+                        choices=['flat', 'hit'],
+                        help='Tensor layout adaptation for .pt feature bags.')
     parser.add_argument('--wsi_h5_feature_key', type=str, default='features',
                         help='Primary feature key used when reading HDF5 bags.')
     parser.add_argument('--wsi_h5_feature2_key', type=str, default='features2',

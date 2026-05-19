@@ -6,14 +6,21 @@
 import os
 import importlib
 
-def get_all_models():
+def _discover_model_files():
     return [model.split('.')[0] for model in os.listdir('models')
             if not model.find('__') > -1 and 'py' in model]
 
 names = {}
-for model in get_all_models():
-    # import ipdb;ipdb.set_trace()
-    mod = importlib.import_module('models.' + model)
+
+def get_all_models():
+    return list(names.keys()) or _discover_model_files()
+
+for model in _discover_model_files():
+    try:
+        mod = importlib.import_module('models.' + model)
+    except ModuleNotFoundError as exc:
+        print('Skipping model {}: {}'.format(model, exc))
+        continue
     class_name = {x.lower():x for x in mod.__dir__()}[model.replace('_', '')]
     names[model] = getattr(mod, class_name)
 

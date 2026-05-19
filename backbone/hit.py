@@ -346,6 +346,7 @@ class HIT(nn.Module):
     """ TNT (Transformer in Transformer) for computer vision
     """
     def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=2, outer_dim=384, inner_dim=384,
+                 input_dim=768,
                  depth=2, outer_num_heads=2, inner_num_heads=2, mlp_ratio=2., qkv_bias=False, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm, inner_stride=4, se=0):
         super().__init__()
@@ -401,15 +402,15 @@ class HIT(nn.Module):
 
 
         self.skimpre = nn.Sequential(
-            nn.LayerNorm(768),
-            nn.Linear(768, 128),
+            nn.LayerNorm(input_dim),
+            nn.Linear(input_dim, 128),
             nn.LayerNorm(128),
             nn.GELU(),
             nn.Linear(128, 2),
         )
 
-        self.fc1 = nn.Sequential(nn.Linear(768, inner_dim), nn.ReLU())
-        self.fc2 = nn.Sequential(nn.Linear(768, inner_dim), nn.ReLU())
+        self.fc1 = nn.Sequential(nn.Linear(input_dim, inner_dim), nn.ReLU())
+        self.fc2 = nn.Sequential(nn.Linear(input_dim, inner_dim), nn.ReLU())
 
         init_skim_predictor([self.skimpre[-1]])
 
