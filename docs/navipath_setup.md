@@ -132,3 +132,25 @@ PYTHONPATH=/home/alan0804/CL/ConSlide python utils/main.py \
   --wsi_num_workers 0 \
   --non_verbose
 ```
+
+Run an ER-ACE baseline sanity check with:
+
+```bash
+PYTHONPATH=/home/alan0804/CL/ConSlide python utils/main.py \
+  --model er_ace \
+  --dataset seq-wsi \
+  --exp_desc er_ace_abmil_sanity \
+  --buffer_size 1100 \
+  --minibatch_size 16 \
+  --n_epochs 1 \
+  --wsi_data_root /home/alan0804/CL/Dataset/navipath_conslide \
+  --wsi_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits \
+  --wsi_feature_subdir feats-l1-s256_CONCH \
+  --wsi_feature_format pt \
+  --wsi_backbone abmil \
+  --wsi_feature_dim 512 \
+  --wsi_pt_feature_layout flat \
+  --wsi_missing_feature2 copy \
+  --wsi_num_workers 0 \
+  --non_verbose
+```
