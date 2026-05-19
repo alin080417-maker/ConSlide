@@ -46,6 +46,9 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--wsi_feature_format', type=str, default='h5',
                         choices=['h5', 'pt'],
                         help='On-disk feature format for WSI bags.')
+    parser.add_argument('--wsi_backbone', type=str, default='hit',
+                        choices=['hit', 'abmil'],
+                        help='Backbone architecture for WSI bag classification.')
     parser.add_argument('--wsi_feature_dim', type=int, default=768,
                         help='Feature vector dimension consumed by the WSI backbone.')
     parser.add_argument('--wsi_pt_feature_layout', type=str, default='flat',

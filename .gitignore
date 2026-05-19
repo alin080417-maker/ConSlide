@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 
 checkpoints/
+results/
 tensorboard_runs/
 wandb/
 *.log

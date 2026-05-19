@@ -35,7 +35,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
 
     def __call__(self, epoch, val_loss, model, ckpt_name = 'checkpoint.pt', start_epoch=6):
 
@@ -306,7 +306,9 @@ def train(model: ContinualModel, dataset: ContinualDataset,
                     break
                 if scheduler is not None:
                     scheduler.step()
-            model.load_state_dict(torch.load(os.path.join(results_dir, f"task{t}_checkpoint.pt")))
+            checkpoint_path = os.path.join(results_dir, f"task{t}_checkpoint.pt")
+            if os.path.exists(checkpoint_path):
+                model.load_state_dict(torch.load(checkpoint_path))
 
             # Add buffer data
             if hasattr(model, 'save_buffer'):

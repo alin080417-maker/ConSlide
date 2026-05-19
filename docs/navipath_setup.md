@@ -94,8 +94,9 @@ Then use these training data arguments:
 --wsi_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits \
 --wsi_feature_subdir feats-l1-s256_CONCH \
 --wsi_feature_format pt \
+--wsi_backbone abmil \
 --wsi_feature_dim 512 \
---wsi_pt_feature_layout hit \
+--wsi_pt_feature_layout flat \
 --wsi_missing_feature2 copy \
 --wsi_num_workers 0
 ```
@@ -108,3 +109,26 @@ backbone. It expands each flat CONCH patch feature into repeated `8 x 8`
 tokens so the original ConSlide forward path can run. For NaviPath, prefer a
 single-stream ABMIL-style backbone instead of treating this adapter as the final
 model design.
+
+Run a short ABMIL sanity check with:
+
+```bash
+PYTHONPATH=/home/alan0804/CL/ConSlide python utils/main.py \
+  --model conslide \
+  --dataset seq-wsi \
+  --exp_desc brca_abmil_sanity \
+  --buffer_size 1100 \
+  --alpha 0.2 \
+  --beta 0.2 \
+  --n_epochs 1 \
+  --wsi_data_root /home/alan0804/CL/Dataset/navipath_conslide \
+  --wsi_split_root /home/alan0804/CL/Dataset/navipath_conslide_splits \
+  --wsi_feature_subdir feats-l1-s256_CONCH \
+  --wsi_feature_format pt \
+  --wsi_backbone abmil \
+  --wsi_feature_dim 512 \
+  --wsi_pt_feature_layout flat \
+  --wsi_missing_feature2 copy \
+  --wsi_num_workers 0 \
+  --non_verbose
+```

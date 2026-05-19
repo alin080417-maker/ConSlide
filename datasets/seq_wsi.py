@@ -749,6 +749,11 @@ class Sequential_Generic_MIL_Dataset(ContinualDataset):
         # return MNISTMLP(28 * 28, SequentialMNIST.N_TASKS
         #                 * SequentialMNIST.N_CLASSES_PER_TASK)
         # return CLAM_SB(n_classes=8)
+        if self.args.wsi_backbone == 'abmil':
+            from backbone.abmil import ABMIL
+
+            return ABMIL(input_dim=self.args.wsi_feature_dim, num_classes=8)
+
         from backbone.hit import HIT
 
         return HIT(num_classes=8, input_dim=self.args.wsi_feature_dim)
