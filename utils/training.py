@@ -404,4 +404,4 @@ def train(model: ContinualModel, dataset: ContinualDataset,
     if args.tensorboard:
         tb_logger.close()
     if args.csv_log:
-        csv_logger.write(vars(args))
+        csv_logger.write(vars(args).copy())

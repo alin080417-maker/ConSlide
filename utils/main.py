@@ -6,7 +6,6 @@
 import numpy # needed (don't change it)
 import importlib
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import sys
 import socket
 main_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -118,6 +117,7 @@ def main(fold, args=None):
     backbone = dataset.get_backbone()
     loss = dataset.get_loss()
     model = get_model(args, backbone, loss, dataset.get_transform())
+    print(f'cuda_available: {torch.cuda.is_available()} | model_device: {model.device}')
     
     # set job name
     # setproctitle.setproctitle('{}_{}_{}'.format(args.model, args.buffer_size if 'buffer_size' in args else 0, args.dataset))     
@@ -132,5 +132,6 @@ def main(fold, args=None):
 
 
 if __name__ == '__main__':
-    for fold in range(5):
-        main(fold=fold)
+    args = parse_args()
+    for fold in range(args.num_folds):
+        main(fold=fold, args=args)
